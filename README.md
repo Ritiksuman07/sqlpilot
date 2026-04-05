@@ -2,7 +2,7 @@
 
 A beautiful, keyboard-driven terminal SQL explorer for Postgres, MySQL, SQLite, and DuckDB. One binary. No browser required.
 
-Status: v0.2.0 (core loop + history + schema expansion). MySQL/DuckDB are planned in v0.3.
+Status: v0.3.0 (core loop + history + schema expansion + MySQL/DuckDB).
 
 ## Why SQLPilot
 - Zero-config, terminal-native database exploration
@@ -34,14 +34,30 @@ SQLite example:
 go run ./cmd/sqlpilot --dsn "/path/to/app.db"
 ```
 
+MySQL example:
+```bash
+go run ./cmd/sqlpilot --dsn "mysql://user:pass@localhost:3306/dbname"
+```
+
+DuckDB example:
+```bash
+go run -tags duckdb ./cmd/sqlpilot --dsn "/path/to/analytics.duckdb"
+```
+
+Note: DuckDB requires building with the `duckdb` build tag (and CGO enabled).
+
 ## Keybindings
 - `Tab` / `Shift+Tab`: cycle focus between panels
 - `F5` or `Ctrl+Enter`: run query
 - `Ctrl+H`: open query history picker
+- `?` or `F1`: help overlay
 - `Enter` on table: fill editor with `SELECT * FROM table LIMIT 100`
 - `Right` / `Space`: expand table columns
 - `Left`: collapse table columns
 - `q` or `Ctrl+Q`: quit
+
+## History
+`Ctrl+H` opens the history picker with a highlighted preview of the selected query.
 
 ## Layout
 - `cmd/sqlpilot` CLI entry
@@ -52,6 +68,6 @@ go run ./cmd/sqlpilot --dsn "/path/to/app.db"
 - `internal/export` CSV/JSON export
 
 ## Notes
-This is a Go + Charmbracelet (Bubble Tea) project. v0.2 adds history, schema expansion, and richer status feedback.
+This is a Go + Charmbracelet (Bubble Tea) project. v0.3 adds MySQL/DuckDB plus history preview and help overlay.
 
 PRD snapshot: `docs/PRD.txt`

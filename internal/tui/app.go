@@ -1,4 +1,4 @@
-﻿package tui
+package tui
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 
 	"github.com/ritiksuman07/sqlpilot/internal/db"
 	"github.com/ritiksuman07/sqlpilot/internal/history"
-	tmsg "github.com/ritiksuman07/sqlpilot/internal/tui/msg"
 	"github.com/ritiksuman07/sqlpilot/internal/tui/editor"
+	tmsg "github.com/ritiksuman07/sqlpilot/internal/tui/msg"
 	"github.com/ritiksuman07/sqlpilot/internal/tui/results"
 	"github.com/ritiksuman07/sqlpilot/internal/tui/schema"
 )
@@ -40,6 +40,7 @@ type Model struct {
 	history   *history.Store
 	status    string
 	lastInfo  string
+	showHelp  bool
 
 	schema  schema.Model
 	editor  editor.Model
@@ -85,7 +86,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "ctrl+q", "q":
+			if m.showHelp {
+				m.showHelp = false
+				return m, nil
+			}
 			return m, tea.Quit
+		case "?", "f1":
+			m.showHelp = !m.showHelp
+			return m, nil
+		case "esc":
+			if m.showHelp {
+				m.showHelp = false
+				return m, nil
+			}
 		case "tab":
 			m.focus = (m.focus + 1) % 3
 			m = m.applyFocus()
@@ -187,7 +200,11 @@ func (m Model) View() string {
 		))
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, left, middle, right)
-	return lipgloss.JoinVertical(lipgloss.Left, row, status)
+	base := lipgloss.JoinVertical(lipgloss.Left, row, status)
+	if m.showHelp {
+		return overlayHelp(base, m.width, m.height)
+	}
+	return base
 }
 
 func (m Model) focusLabel() string {
@@ -324,6 +341,43 @@ func qualifiedTable(schemaName, tableName string) string {
 		return tableName
 	}
 	return fmt.Sprintf("%s.%s", schemaName, tableName)
+}
+
+func overlayHelp(base string, width, height int) string {
+	help := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("39")).
+		Padding(1, 2).
+		Width(min(72, width-4)).
+		Render(helpText())
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, help)
+}
+
+func helpText() string {
+	return strings.Join([]string{
+		"SQLPilot Help",
+		"",
+		"Global",
+		"  Tab / Shift+Tab    Cycle focus",
+		"  ? or F1            Toggle help",
+		"  q / Ctrl+Q         Quit",
+		"",
+		"Editor",
+		"  F5 / Ctrl+Enter    Run query",
+		"  Ctrl+H             Open history",
+		"",
+		"Schema",
+		"  Enter              SELECT * FROM table",
+		"  Right / Space      Expand columns",
+		"  Left               Collapse columns",
+	}, "\n")
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func maskDSN(dsn string) string {

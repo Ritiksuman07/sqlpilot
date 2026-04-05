@@ -1,6 +1,7 @@
-﻿package editor
+package editor
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -17,6 +18,7 @@ type Model struct {
 	historyList list.Model
 	showHistory bool
 	lastError   string
+	preview     string
 	focus       bool
 	width       int
 	height      int
@@ -49,6 +51,7 @@ func (m Model) Update(message tea.Msg) (Model, tea.Cmd) {
 			items = append(items, historyItem{entry: entry})
 		}
 		m.historyList.SetItems(items)
+		m.preview = ""
 		return m, nil
 	}
 
@@ -86,6 +89,7 @@ func (m Model) Update(message tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	if m.showHistory {
 		m.historyList, cmd = m.historyList.Update(message)
+		m.preview = previewForHistory(m.historyList.SelectedItem(), max(4, m.height/2-2))
 		return m, cmd
 	}
 	m.area, cmd = m.area.Update(message)
@@ -98,7 +102,11 @@ func (m Model) View() string {
 		BorderForeground(m.borderColor())
 	body := m.area.View()
 	if m.showHistory {
-		body = m.historyList.View()
+		listHeight := max(6, m.height/2)
+		previewHeight := max(4, m.height-2-listHeight)
+		m.historyList.SetSize(m.width-2, listHeight)
+		preview := renderPreview(m.preview, previewHeight, m.width-2)
+		body = lipgloss.JoinVertical(lipgloss.Left, m.historyList.View(), preview)
 	}
 	if m.lastError != "" {
 		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("160"))
@@ -155,14 +163,15 @@ type historyItem struct {
 }
 
 func (h historyItem) Title() string {
-	return h.entry.Query
+	return truncateLine(normalizeQuery(h.entry.Query), 80)
 }
 
 func (h historyItem) Description() string {
 	if h.entry.CreatedAt.IsZero() {
 		return ""
 	}
-	return h.entry.CreatedAt.Format("2006-01-02 15:04:05")
+	lines := 1 + strings.Count(h.entry.Query, "\n")
+	return h.entry.CreatedAt.Format("2006-01-02 15:04:05") + " · " + fmt.Sprintf("%d lines", lines)
 }
 
 func (h historyItem) FilterValue() string {
@@ -174,4 +183,53 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func normalizeQuery(query string) string {
+	query = strings.ReplaceAll(query, "\n", " ")
+	query = strings.ReplaceAll(query, "\t", " ")
+	query = strings.TrimSpace(query)
+	return strings.Join(strings.Fields(query), " ")
+}
+
+func truncateLine(value string, limit int) string {
+	if limit <= 0 {
+		return value
+	}
+	if len(value) <= limit {
+		return value
+	}
+	return value[:limit-1] + "…"
+}
+
+func previewForHistory(item list.Item, maxLines int) string {
+	hist, ok := item.(historyItem)
+	if !ok {
+		return ""
+	}
+	if maxLines <= 0 {
+		maxLines = 4
+	}
+	query := strings.TrimSpace(hist.entry.Query)
+	if query == "" {
+		return ""
+	}
+	highlighted := highlightSQL(query)
+	lines := strings.Split(highlighted, "\n")
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+		lines = append(lines, "…")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderPreview(content string, height, width int) string {
+	if content == "" {
+		content = "History preview"
+	}
+	box := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("238")).
+		Padding(0, 1)
+	return box.Width(width).Height(height).Render(content)
 }

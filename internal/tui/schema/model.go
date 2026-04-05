@@ -1,4 +1,4 @@
-﻿package schema
+package schema
 
 import (
 	"fmt"
@@ -48,7 +48,7 @@ func New() Model {
 	l.SetShowHelp(false)
 	return Model{
 		list:     l,
-		columns: map[string][]db.Column{},
+		columns:  map[string][]db.Column{},
 		expanded: map[string]bool{},
 	}
 }
@@ -64,7 +64,7 @@ func (m Model) Update(message tea.Msg) (Model, tea.Cmd) {
 	if key, ok := message.(tea.KeyMsg); ok {
 		switch key.String() {
 		case "enter":
-			if selected, ok := m.list.SelectedItem().(item); ok {
+			if selected, ok := m.list.SelectedItem().(item); ok && selected.kind == "table" {
 				return m, func() tea.Msg {
 					return msg.SelectTable{Schema: selected.schema, Name: selected.name}
 				}
