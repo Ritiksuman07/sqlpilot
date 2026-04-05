@@ -1,50 +1,93 @@
-﻿# SQLPilot
+﻿# SQLPilot — terminal SQL explorer
 
-A beautiful, keyboard-driven terminal SQL explorer for Postgres, MySQL, SQLite, and DuckDB. One binary. No browser required.
+A beautiful, keyboard‑driven terminal SQL explorer for Postgres, MySQL, SQLite, and DuckDB. One binary. No browser required.
+
+[![Release](https://img.shields.io/github/v/release/Ritiksuman07/sqlpilot)](https://github.com/Ritiksuman07/sqlpilot/releases)
+[![Stars](https://img.shields.io/github/stars/Ritiksuman07/sqlpilot)](https://github.com/Ritiksuman07/sqlpilot/stargazers)
+[![Build](https://github.com/Ritiksuman07/sqlpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Ritiksuman07/sqlpilot/actions/workflows/ci.yml)
+![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8-logo=go&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-10B981)
+![Platform](https://img.shields.io/badge/Platforms-macOS%20%7C%20Linux%20%7C%20WSL-111827)
 
 Status: v0.5.0 (background autocomplete preload, profile picker, improved history filtering).
 
+## Screenshots & Demo
+<img src="assets/sqlpilot-screenshot.png" alt="SQLPilot TUI screenshot showing schema, editor, and results panels" title="SQLPilot TUI screenshot" />
+
+<img src="assets/sqlpilot-demo.gif" alt="SQLPilot demo GIF showing schema navigation, autocomplete, and exports" title="SQLPilot demo GIF" />
+
+## Table of Contents
+- Why SQLPilot
+- Features
+- Install
+- Quick Start
+- Keybindings
+- Profiles
+- Export
+- Roadmap
+- Keywords
+- Tags
+- Contributing
+- License
+
 ## Why SQLPilot
-- Zero-config, terminal-native database exploration
-- Fast schema browsing with lazy expansion
-- Query with instant, scrollable results
-- Keyboard-first workflow (no mouse, no browser)
+- Terminal‑native schema browsing without leaving your workflow
+- Keyboard‑first querying with instant results
+- Zero‑config feel with profiles + keychain storage
+- Single Go binary, no GUI dependencies
 
-## Goals (v1.0)
-- Single binary installable via brew/apt/go install
-- Three-panel layout (schema tree / query editor / results pager)
-- Zero-config connection workflow
-- Fast start and smooth terminal UX
+## Features
+- Three‑panel TUI: schema tree, query editor, results pager
+- Multi‑DB: Postgres, MySQL, SQLite, DuckDB
+- Autocomplete from live schema (preloaded in background)
+- SQL formatter (`Ctrl+L`)
+- Query history with fuzzy filter and highlighted matches
+- CSV/JSON export from results
+- Profile wizard + OS keychain password storage
 
-## Roadmap (from PRD)
-- v0.1: Core loop (SQLite + Postgres, schema tree, editor, results, keyboard nav)
-- v0.2: UX polish (history, error display, richer status bar, schema expansion)
-- v0.3: Multi-DB (MySQL + DuckDB, exports, connection profiles)
-- v0.4: Autocomplete + formatting
+## Install
 
-## Run (dev)
+### Go install
 ```bash
+go install github.com/ritiksuman07/sqlpilot@latest
+```
+
+### From source
+```bash
+git clone https://github.com/Ritiksuman07/sqlpilot.git
 cd sqlpilot
 
-go run ./cmd/sqlpilot --dsn "postgres://user:pass@localhost:5432/dbname"
+go build ./...
+./sqlpilot
 ```
 
-SQLite example:
+### DuckDB build tag
+DuckDB requires the `duckdb` build tag (and CGO enabled).
 ```bash
-go run ./cmd/sqlpilot --dsn "/path/to/app.db"
+go build -tags duckdb ./cmd/sqlpilot
 ```
 
-MySQL example:
+## Quick Start
+
+### Postgres
 ```bash
-go run ./cmd/sqlpilot --dsn "mysql://user:pass@localhost:3306/dbname"
+sqlpilot --dsn "postgres://user:pass@localhost:5432/dbname"
 ```
 
-DuckDB example:
+### SQLite
+```bash
+sqlpilot --dsn "/path/to/app.db"
+```
+
+### MySQL
+```bash
+sqlpilot --dsn "mysql://user:pass@localhost:3306/dbname"
+```
+
+### DuckDB
 ```bash
 go run -tags duckdb ./cmd/sqlpilot --dsn "/path/to/analytics.duckdb"
 ```
-
-Note: DuckDB requires building with the `duckdb` build tag (and CGO enabled).
 
 ## Keybindings
 - `Tab` / `Shift+Tab`: cycle focus between panels
@@ -60,26 +103,32 @@ Note: DuckDB requires building with the `duckdb` build tag (and CGO enabled).
 - `Ctrl+J`: export JSON
 - `q` or `Ctrl+Q`: quit
 
-## History
-`Ctrl+H` opens the history picker with a highlighted preview of the selected query.
-
 ## Profiles
-If no DSN is provided, SQLPilot prompts for a connection profile and stores passwords in the OS keychain.
+If no DSN is provided, SQLPilot launches a connection wizard and stores passwords in the OS keychain.
 Profiles live at `~/.config/sqlpilot/connections.yaml` and can be selected with `--profile`.
-If multiple profiles exist, a fuzzy-search picker appears on launch.
+If multiple profiles exist, a fuzzy‑search picker appears on launch.
 
 ## Export
 `Ctrl+E` writes CSV and `Ctrl+J` writes JSON to a timestamped file in the current working directory.
 
-## Layout
-- `cmd/sqlpilot` CLI entry
-- `internal/tui` TUI app + panels
-- `internal/db` connector interface
-- `internal/config` connection profile store
-- `internal/history` query history store
-- `internal/export` CSV/JSON export
+## Roadmap
+- v0.6: smarter autocomplete ranking + export path prompt
+- v0.7: connection manager UI + schema search
+- v1.0: polished UX, docs, and release artifacts
 
-## Notes
-This is a Go + Charmbracelet (Bubble Tea) project. v0.3 adds MySQL/DuckDB plus history preview and help overlay.
+## Keywords
+terminal SQL explorer, TUI database client, CLI SQL client, Postgres TUI, MySQL TUI, SQLite TUI, DuckDB CLI, SQL query tool, Go TUI, Bubble Tea
 
-PRD snapshot: `docs/PRD.txt`
+## Tags
+#sql #database #postgres #mysql #sqlite #duckdb #terminal #tui #cli #golang #devtools #opensource
+
+## Contributing
+Issues and PRs are welcome. Please include steps to reproduce and a short rationale for changes.
+
+- Contribution guide: `CONTRIBUTING.md`
+- Security policy: `SECURITY.md`
+- Code of conduct: `CODE_OF_CONDUCT.md`
+- Changelog: `CHANGELOG.md`
+
+## License
+MIT
