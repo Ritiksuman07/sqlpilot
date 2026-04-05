@@ -120,6 +120,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.schema = m.schema.WithSize(m.schemaWidth(), m.panelHeight())
 		m.editor = m.editor.WithSize(m.editorWidth(), m.panelHeight())
 		m.results = m.results.WithSize(m.resultsWidth(), m.panelHeight())
+		m.profileList.SetSize(min(72, m.width-6), min(16, m.height-6))
 		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {

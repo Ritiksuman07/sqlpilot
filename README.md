@@ -39,11 +39,12 @@ Status: v0.5.0 (background autocomplete preload, profile picker, improved histor
 ## Features
 - Three‑panel TUI: schema tree, query editor, results pager
 - Multi‑DB: Postgres, MySQL, SQLite, DuckDB
-- Autocomplete from live schema (preloaded in background)
+- Autocomplete from live schema (columns preloaded in background)
 - SQL formatter (`Ctrl+L`)
 - Query history with fuzzy filter and highlighted matches
 - CSV/JSON export from results
 - Profile wizard + OS keychain password storage
+- Fuzzy profile picker when multiple profiles exist
 
 ## Install
 
@@ -117,10 +118,10 @@ If multiple profiles exist, a fuzzy‑search picker appears on launch.
 - v1.0: polished UX, docs, and release artifacts
 
 ## Keywords
-terminal SQL explorer, TUI database client, CLI SQL client, Postgres TUI, MySQL TUI, SQLite TUI, DuckDB CLI, SQL query tool, Go TUI, Bubble Tea
+terminal SQL explorer, TUI database client, CLI SQL client, terminal database browser, database explorer, Postgres TUI, MySQL TUI, SQLite TUI, DuckDB CLI, SQL query tool, SQL client, Go TUI, Bubble Tea, command line database tool, schema viewer, terminal data viewer
 
 ## Tags
-#sql #database #postgres #mysql #sqlite #duckdb #terminal #tui #cli #golang #devtools #opensource
+#sql #database #postgres #mysql #sqlite #duckdb #terminal #tui #cli #golang #devtools #opensource #datatools #backend #dataengineering
 
 ## Contributing
 Issues and PRs are welcome. Please include steps to reproduce and a short rationale for changes.
