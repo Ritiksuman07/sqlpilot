@@ -1,0 +1,25 @@
+﻿# Go
+/bin/
+/pkg/
+/tmp/
+
+# Build
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SQLPilot local data
+*.db
+*.sqlite
+*.sqlite3
+connections.yaml
