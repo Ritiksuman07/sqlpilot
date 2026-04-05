@@ -5,7 +5,7 @@ A beautiful, keyboard‑driven terminal SQL explorer for Postgres, MySQL, SQLite
 [![Release](https://img.shields.io/github/v/release/Ritiksuman07/sqlpilot)](https://github.com/Ritiksuman07/sqlpilot/releases)
 [![Stars](https://img.shields.io/github/stars/Ritiksuman07/sqlpilot)](https://github.com/Ritiksuman07/sqlpilot/stargazers)
 [![Build](https://github.com/Ritiksuman07/sqlpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Ritiksuman07/sqlpilot/actions/workflows/ci.yml)
-![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8-logo=go&logoColor=white)
+![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8-logo=go&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-10B981)
 ![Platform](https://img.shields.io/badge/Platforms-macOS%20%7C%20Linux%20%7C%20WSL-111827)
 
