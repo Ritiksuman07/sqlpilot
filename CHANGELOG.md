@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.0 - 2026-04-05
+- Added autocomplete from live schema
+- Added SQL formatter (`Ctrl+L`)
+- Added CSV/JSON export from results
+- Added connection profile wizard with keychain password storage
+
 ## v0.3.0 - 2026-04-05
 - Added MySQL and DuckDB connectors
 - Added history preview with SQL syntax highlighting and truncation

@@ -40,3 +40,17 @@ type RequestColumns struct {
 	Schema string
 	Table  string
 }
+
+type AutocompleteUpdate struct {
+	Words []string
+}
+
+type ExportRequest struct {
+	Format string
+}
+
+type ExportDone struct {
+	Path   string
+	Format string
+	Err    error
+}

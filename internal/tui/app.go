@@ -3,13 +3,20 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/ritiksuman07/sqlpilot/internal/config"
 	"github.com/ritiksuman07/sqlpilot/internal/db"
+	"github.com/ritiksuman07/sqlpilot/internal/export"
 	"github.com/ritiksuman07/sqlpilot/internal/history"
+	"github.com/ritiksuman07/sqlpilot/internal/tui/connect"
 	"github.com/ritiksuman07/sqlpilot/internal/tui/editor"
 	tmsg "github.com/ritiksuman07/sqlpilot/internal/tui/msg"
 	"github.com/ritiksuman07/sqlpilot/internal/tui/results"
@@ -36,11 +43,13 @@ type Model struct {
 	width   int
 	height  int
 
-	connector db.Connector
-	history   *history.Store
-	status    string
-	lastInfo  string
-	showHelp  bool
+	connector  db.Connector
+	history    *history.Store
+	status     string
+	lastInfo   string
+	showHelp   bool
+	lastResult *db.Result
+	words      map[string]struct{}
 
 	schema  schema.Model
 	editor  editor.Model
@@ -55,6 +64,7 @@ func New(options Options) Model {
 		schema:  schema.New(),
 		editor:  editor.New(),
 		results: results.New(),
+		words:   map[string]struct{}{},
 	}
 }
 
@@ -115,7 +125,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tmsg.Tables:
 		m.schema = m.schema.WithTables(msg.Tables)
-		return m, nil
+		m.addWordsFromTables(msg.Tables)
+		return m, m.pushAutocomplete()
 	case tmsg.SelectTable:
 		query := fmt.Sprintf("SELECT * FROM %s LIMIT 100;", qualifiedTable(msg.Schema, msg.Name))
 		m.editor = m.editor.WithQuery(query)
@@ -139,6 +150,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tmsg.Results:
 		if msg.Result != nil {
 			m.results = m.results.WithResult(*msg.Result)
+			m.lastResult = msg.Result
 			m.status = "connected"
 			m.lastInfo = fmt.Sprintf("rows: %d  time: %s", len(msg.Result.Rows), msg.Result.Elapsed)
 		}
@@ -156,6 +168,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, loadColumnsCmd(m.connector, msg.Schema, msg.Table)
+	case tmsg.ColumnsLoaded:
+		m.schema = m.schema.WithColumns(msg.Schema, msg.Table, msg.Columns)
+		m.addWordsFromColumns(msg.Columns)
+		return m, m.pushAutocomplete()
+	case tmsg.ExportRequest:
+		if m.lastResult == nil {
+			m.status = "error"
+			m.lastInfo = "no results to export"
+			return m, nil
+		}
+		return m, exportCmd(msg.Format, m.lastResult)
+	case tmsg.ExportDone:
+		if msg.Err != nil {
+			m.status = "error"
+			m.lastInfo = msg.Err.Error()
+			return m, nil
+		}
+		m.status = "connected"
+		m.lastInfo = fmt.Sprintf("exported %s to %s", msg.Format, msg.Path)
+		return m, nil
 	case dbConnectorMsg:
 		m.connector = msg.connector
 		m.status = "connected"
@@ -263,10 +295,62 @@ type historyStoreMsg struct {
 
 func connectCmd(options Options) tea.Cmd {
 	return func() tea.Msg {
-		if strings.TrimSpace(options.DSN) == "" {
-			return tmsg.Err{Err: fmt.Errorf("missing DSN: run with --dsn")}
+		if strings.TrimSpace(options.DSN) != "" {
+			conn, err := db.Open(options.DSN)
+			if err != nil {
+				return tmsg.Err{Err: err}
+			}
+			return dbConnectorMsg{connector: conn}
 		}
-		conn, err := db.Open(options.DSN)
+
+		cfg, err := config.Load()
+		if err != nil {
+			return tmsg.Err{Err: err}
+		}
+
+		profileName := strings.TrimSpace(options.Profile)
+		if profileName == "" && len(cfg.Profiles) == 0 {
+			profile, password, err := connect.RunWizard()
+			if err != nil {
+				return tmsg.Err{Err: err}
+			}
+			dsn := config.BuildDSN(profile, password)
+			conn, err := db.Open(dsn)
+			if err != nil {
+				return tmsg.Err{Err: err}
+			}
+			cfg.Profiles = append(cfg.Profiles, profile)
+			if err := config.Save(cfg); err != nil {
+				return tmsg.Err{Err: err}
+			}
+			if err := config.SavePassword(profile.Name, password); err != nil {
+				return tmsg.Err{Err: err}
+			}
+			return dbConnectorMsg{connector: conn}
+		}
+
+		if profileName == "" && len(cfg.Profiles) > 1 {
+			names := make([]string, 0, len(cfg.Profiles))
+			for _, profile := range cfg.Profiles {
+				names = append(names, profile.Name)
+			}
+			return tmsg.Err{Err: fmt.Errorf("multiple profiles found: use --profile (%s)", strings.Join(names, ", "))}
+		}
+
+		if profileName == "" && len(cfg.Profiles) == 1 {
+			profileName = cfg.Profiles[0].Name
+		}
+
+		profile, ok := cfg.FindProfile(profileName)
+		if !ok {
+			return tmsg.Err{Err: fmt.Errorf("profile not found: %s", profileName)}
+		}
+		password, _ := config.LoadPassword(profile.Name)
+		dsn := config.BuildDSN(profile, password)
+		if dsn == "" {
+			return tmsg.Err{Err: fmt.Errorf("invalid profile: %s", profileName)}
+		}
+		conn, err := db.Open(dsn)
 		if err != nil {
 			return tmsg.Err{Err: err}
 		}
@@ -336,6 +420,64 @@ func loadColumnsCmd(connector db.Connector, schemaName, tableName string) tea.Cm
 	}
 }
 
+func exportCmd(format string, result *db.Result) tea.Cmd {
+	return func() tea.Msg {
+		if result == nil {
+			return tmsg.ExportDone{Format: format, Err: fmt.Errorf("no results to export")}
+		}
+		ext := "csv"
+		if format == "json" {
+			ext = "json"
+		}
+		filename := fmt.Sprintf("sqlpilot_export_%s.%s", time.Now().Format("20060102_150405"), ext)
+		path := filepath.Join(".", filename)
+		file, err := os.Create(path)
+		if err != nil {
+			return tmsg.ExportDone{Format: format, Err: err}
+		}
+		defer file.Close()
+		if format == "json" {
+			if err := export.WriteJSON(file, result.Columns, result.Rows); err != nil {
+				return tmsg.ExportDone{Format: format, Err: err}
+			}
+		} else {
+			if err := export.WriteCSV(file, result.Columns, result.Rows); err != nil {
+				return tmsg.ExportDone{Format: format, Err: err}
+			}
+		}
+		return tmsg.ExportDone{Format: format, Path: path}
+	}
+}
+
+func (m *Model) addWordsFromTables(tables []db.Table) {
+	for _, table := range tables {
+		m.words[table.Name] = struct{}{}
+		if table.Schema != "" {
+			m.words[fmt.Sprintf("%s.%s", table.Schema, table.Name)] = struct{}{}
+		}
+	}
+}
+
+func (m *Model) addWordsFromColumns(cols []db.Column) {
+	for _, col := range cols {
+		m.words[col.Name] = struct{}{}
+	}
+}
+
+func (m *Model) pushAutocomplete() tea.Cmd {
+	if len(m.words) == 0 {
+		return nil
+	}
+	words := make([]string, 0, len(m.words))
+	for word := range m.words {
+		words = append(words, word)
+	}
+	sort.Strings(words)
+	return func() tea.Msg {
+		return tmsg.AutocompleteUpdate{Words: words}
+	}
+}
+
 func qualifiedTable(schemaName, tableName string) string {
 	if schemaName == "" || schemaName == "main" {
 		return tableName
@@ -364,12 +506,18 @@ func helpText() string {
 		"",
 		"Editor",
 		"  F5 / Ctrl+Enter    Run query",
+		"  Ctrl+Space         Autocomplete",
+		"  Ctrl+L             Format SQL",
 		"  Ctrl+H             Open history",
 		"",
 		"Schema",
 		"  Enter              SELECT * FROM table",
 		"  Right / Space      Expand columns",
 		"  Left               Collapse columns",
+		"",
+		"Results",
+		"  Ctrl+E             Export CSV",
+		"  Ctrl+J             Export JSON",
 	}, "\n")
 }
 

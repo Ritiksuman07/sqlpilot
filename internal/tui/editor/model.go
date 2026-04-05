@@ -19,6 +19,7 @@ type Model struct {
 	showHistory bool
 	lastError   string
 	preview     string
+	words       []string
 	focus       bool
 	width       int
 	height      int
@@ -53,10 +54,18 @@ func (m Model) Update(message tea.Msg) (Model, tea.Cmd) {
 		m.historyList.SetItems(items)
 		m.preview = ""
 		return m, nil
+	case msg.AutocompleteUpdate:
+		m.words = typed.Words
+		return m, nil
 	}
 
 	if key, ok := message.(tea.KeyMsg); ok {
 		switch key.String() {
+		case "ctrl+space":
+			if !m.showHistory {
+				m.autocomplete()
+				return m, nil
+			}
 		case "f5", "ctrl+enter":
 			query := strings.TrimSpace(m.area.Value())
 			if query == "" {
@@ -65,6 +74,10 @@ func (m Model) Update(message tea.Msg) (Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return msg.ExecuteQuery{Query: query}
 			}
+		case "ctrl+l":
+			formatted := formatSQL(m.area.Value())
+			m.area.SetValue(formatted)
+			return m, nil
 		case "ctrl+h":
 			m.showHistory = true
 			return m, func() tea.Msg {
@@ -183,6 +196,44 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func (m *Model) autocomplete() {
+	if len(m.words) == 0 {
+		return
+	}
+	value := m.area.Value()
+	prefix, token := splitToken(value)
+	if token == "" {
+		return
+	}
+	match := ""
+	for _, word := range m.words {
+		if strings.HasPrefix(strings.ToLower(word), strings.ToLower(token)) {
+			match = word
+			break
+		}
+	}
+	if match == "" {
+		return
+	}
+	m.area.SetValue(prefix + match)
+}
+
+func splitToken(value string) (string, string) {
+	if value == "" {
+		return "", ""
+	}
+	idx := len(value)
+	for idx > 0 {
+		ch := value[idx-1]
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '.' {
+			idx--
+			continue
+		}
+		break
+	}
+	return value[:idx], value[idx:]
 }
 
 func normalizeQuery(query string) string {

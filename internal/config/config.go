@@ -1,6 +1,7 @@
-﻿package config
+package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -20,6 +21,36 @@ type Profile struct {
 
 type Config struct {
 	Profiles []Profile `yaml:"profiles"`
+}
+
+func (c Config) FindProfile(name string) (Profile, bool) {
+	for _, profile := range c.Profiles {
+		if profile.Name == name {
+			return profile, true
+		}
+	}
+	return Profile{}, false
+}
+
+func BuildDSN(profile Profile, password string) string {
+	switch profile.Driver {
+	case "postgres":
+		if profile.Port == 0 {
+			profile.Port = 5432
+		}
+		return fmt.Sprintf("postgres://%s:%s@%s:%d/%s", profile.Username, password, profile.Host, profile.Port, profile.Database)
+	case "mysql":
+		if profile.Port == 0 {
+			profile.Port = 3306
+		}
+		return fmt.Sprintf("mysql://%s:%s@%s:%d/%s", profile.Username, password, profile.Host, profile.Port, profile.Database)
+	case "sqlite":
+		return profile.Path
+	case "duckdb":
+		return profile.Path
+	default:
+		return ""
+	}
 }
 
 func ConfigPath() (string, error) {

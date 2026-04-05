@@ -1,4 +1,4 @@
-﻿package results
+package results
 
 import (
 	"unicode/utf8"
@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ritiksuman07/sqlpilot/internal/db"
+	"github.com/ritiksuman07/sqlpilot/internal/tui/msg"
 )
 
 type Model struct {
@@ -15,6 +16,7 @@ type Model struct {
 	focus  bool
 	width  int
 	height int
+	result *db.Result
 }
 
 func New() Model {
@@ -53,9 +55,17 @@ func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+func (m Model) Update(message tea.Msg) (Model, tea.Cmd) {
+	if key, ok := message.(tea.KeyMsg); ok {
+		switch key.String() {
+		case "ctrl+e":
+			return m, func() tea.Msg { return msg.ExportRequest{Format: "csv"} }
+		case "ctrl+j":
+			return m, func() tea.Msg { return msg.ExportRequest{Format: "json"} }
+		}
+	}
 	var cmd tea.Cmd
-	m.table, cmd = m.table.Update(msg)
+	m.table, cmd = m.table.Update(message)
 	return m, cmd
 }
 
@@ -80,6 +90,7 @@ func (m Model) WithSize(width, height int) Model {
 }
 
 func (m Model) WithResult(result db.Result) Model {
+	m.result = &result
 	columns := make([]table.Column, 0, len(result.Columns))
 	for _, col := range result.Columns {
 		columns = append(columns, table.Column{Title: col, Width: 12})
@@ -100,6 +111,10 @@ func (m Model) WithResult(result db.Result) Model {
 	m.table.SetColumns(columns)
 	m.table.SetRows(rows)
 	return m
+}
+
+func (m Model) Result() *db.Result {
+	return m.result
 }
 
 func computeWidths(columns []string, rows [][]string) []int {

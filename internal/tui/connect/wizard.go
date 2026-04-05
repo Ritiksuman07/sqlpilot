@@ -1,4 +1,4 @@
-﻿package connect
+package connect
 
 import (
 	"strconv"
@@ -8,9 +8,10 @@ import (
 	"github.com/ritiksuman07/sqlpilot/internal/config"
 )
 
-func RunWizard() (config.Profile, error) {
+func RunWizard() (config.Profile, string, error) {
 	var profile config.Profile
 	var port string
+	var password string
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -28,11 +29,13 @@ func RunWizard() (config.Profile, error) {
 			huh.NewInput().Title("Port").Value(&port),
 			huh.NewInput().Title("Database").Value(&profile.Database),
 			huh.NewInput().Title("Username").Value(&profile.Username),
+			huh.NewInput().Title("Password").EchoMode(huh.EchoModePassword).Value(&password),
+			huh.NewInput().Title("Path (SQLite/DuckDB)").Value(&profile.Path),
 		),
 	)
 
 	if err := form.Run(); err != nil {
-		return config.Profile{}, err
+		return config.Profile{}, "", err
 	}
 
 	if port != "" {
@@ -41,5 +44,5 @@ func RunWizard() (config.Profile, error) {
 		}
 	}
 
-	return profile, nil
+	return profile, password, nil
 }

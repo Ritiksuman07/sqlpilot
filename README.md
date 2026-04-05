@@ -2,7 +2,7 @@
 
 A beautiful, keyboard-driven terminal SQL explorer for Postgres, MySQL, SQLite, and DuckDB. One binary. No browser required.
 
-Status: v0.3.0 (core loop + history + schema expansion + MySQL/DuckDB).
+Status: v0.4.0 (autocomplete, formatter, exports, profiles).
 
 ## Why SQLPilot
 - Zero-config, terminal-native database exploration
@@ -49,15 +49,26 @@ Note: DuckDB requires building with the `duckdb` build tag (and CGO enabled).
 ## Keybindings
 - `Tab` / `Shift+Tab`: cycle focus between panels
 - `F5` or `Ctrl+Enter`: run query
+- `Ctrl+Space`: autocomplete from schema
+- `Ctrl+L`: format SQL
 - `Ctrl+H`: open query history picker
 - `?` or `F1`: help overlay
 - `Enter` on table: fill editor with `SELECT * FROM table LIMIT 100`
 - `Right` / `Space`: expand table columns
 - `Left`: collapse table columns
+- `Ctrl+E`: export CSV
+- `Ctrl+J`: export JSON
 - `q` or `Ctrl+Q`: quit
 
 ## History
 `Ctrl+H` opens the history picker with a highlighted preview of the selected query.
+
+## Profiles
+If no DSN is provided, SQLPilot prompts for a connection profile and stores passwords in the OS keychain.
+Profiles live at `~/.config/sqlpilot/connections.yaml` and can be selected with `--profile`.
+
+## Export
+`Ctrl+E` writes CSV and `Ctrl+J` writes JSON to a timestamped file in the current working directory.
 
 ## Layout
 - `cmd/sqlpilot` CLI entry
