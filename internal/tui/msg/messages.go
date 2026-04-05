@@ -2,6 +2,7 @@ package msg
 
 import "github.com/ritiksuman07/sqlpilot/internal/db"
 import "github.com/ritiksuman07/sqlpilot/internal/history"
+import "github.com/ritiksuman07/sqlpilot/internal/config"
 
 type Err struct {
 	Err error
@@ -53,4 +54,12 @@ type ExportDone struct {
 	Path   string
 	Format string
 	Err    error
+}
+
+type PreloadWords struct {
+	Words []string
+}
+
+type ProfileList struct {
+	Profiles []config.Profile
 }

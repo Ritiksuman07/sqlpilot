@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.5.0 - 2026-04-05
+- Added background column preload for autocomplete
+- Added fuzzy profile picker UI
+- Improved history filtering highlights
+
 ## v0.4.0 - 2026-04-05
 - Added autocomplete from live schema
 - Added SQL formatter (`Ctrl+L`)

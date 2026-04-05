@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -43,13 +44,16 @@ type Model struct {
 	width   int
 	height  int
 
-	connector  db.Connector
-	history    *history.Store
-	status     string
-	lastInfo   string
-	showHelp   bool
-	lastResult *db.Result
-	words      map[string]struct{}
+	connector         db.Connector
+	history           *history.Store
+	status            string
+	lastInfo          string
+	showHelp          bool
+	lastResult        *db.Result
+	words             map[string]struct{}
+	showProfilePicker bool
+	profileList       list.Model
+	profiles          []config.Profile
 
 	schema  schema.Model
 	editor  editor.Model
@@ -57,14 +61,20 @@ type Model struct {
 }
 
 func New(options Options) Model {
+	profileList := list.New([]list.Item{}, list.NewDefaultDelegate(), 40, 10)
+	profileList.Title = "Select Profile"
+	profileList.SetShowStatusBar(false)
+	profileList.SetFilteringEnabled(true)
+	profileList.SetShowHelp(false)
 	return Model{
-		options: options,
-		focus:   FocusEditor,
-		status:  "disconnected",
-		schema:  schema.New(),
-		editor:  editor.New(),
-		results: results.New(),
-		words:   map[string]struct{}{},
+		options:     options,
+		focus:       FocusEditor,
+		status:      "disconnected",
+		schema:      schema.New(),
+		editor:      editor.New(),
+		results:     results.New(),
+		words:       map[string]struct{}{},
+		profileList: profileList,
 	}
 }
 
@@ -85,6 +95,24 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.showProfilePicker {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "esc":
+				m.showProfilePicker = false
+				return m, nil
+			case "enter":
+				if selected, ok := m.profileList.SelectedItem().(profileItem); ok {
+					m.showProfilePicker = false
+					return m, connectProfileCmd(selected.profile)
+				}
+			}
+		}
+		var cmd tea.Cmd
+		m.profileList, cmd = m.profileList.Update(msg)
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -126,7 +154,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tmsg.Tables:
 		m.schema = m.schema.WithTables(msg.Tables)
 		m.addWordsFromTables(msg.Tables)
-		return m, m.pushAutocomplete()
+		return m, tea.Batch(
+			m.pushAutocomplete(),
+			preloadColumnsCmd(m.connector, msg.Tables),
+		)
 	case tmsg.SelectTable:
 		query := fmt.Sprintf("SELECT * FROM %s LIMIT 100;", qualifiedTable(msg.Schema, msg.Name))
 		m.editor = m.editor.WithQuery(query)
@@ -170,7 +201,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, loadColumnsCmd(m.connector, msg.Schema, msg.Table)
 	case tmsg.ColumnsLoaded:
 		m.schema = m.schema.WithColumns(msg.Schema, msg.Table, msg.Columns)
-		m.addWordsFromColumns(msg.Columns)
+		m.addWordsFromColumns(msg.Schema, msg.Table, msg.Columns)
+		return m, m.pushAutocomplete()
+	case tmsg.PreloadWords:
+		for _, word := range msg.Words {
+			m.words[word] = struct{}{}
+		}
 		return m, m.pushAutocomplete()
 	case tmsg.ExportRequest:
 		if m.lastResult == nil {
@@ -195,6 +231,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, loadTablesCmd(m.connector)
 	case historyStoreMsg:
 		m.history = msg.store
+		return m, nil
+	case tmsg.ProfileList:
+		m.profiles = msg.Profiles
+		items := make([]list.Item, 0, len(msg.Profiles))
+		for _, profile := range msg.Profiles {
+			items = append(items, profileItem{profile: profile})
+		}
+		m.profileList.SetItems(items)
+		m.showProfilePicker = true
+		m.status = "select profile"
+		m.lastInfo = "choose a connection profile"
 		return m, nil
 	}
 
@@ -235,6 +282,9 @@ func (m Model) View() string {
 	base := lipgloss.JoinVertical(lipgloss.Left, row, status)
 	if m.showHelp {
 		return overlayHelp(base, m.width, m.height)
+	}
+	if m.showProfilePicker {
+		return overlayProfilePicker(base, m.profileList, m.width, m.height)
 	}
 	return base
 }
@@ -330,11 +380,7 @@ func connectCmd(options Options) tea.Cmd {
 		}
 
 		if profileName == "" && len(cfg.Profiles) > 1 {
-			names := make([]string, 0, len(cfg.Profiles))
-			for _, profile := range cfg.Profiles {
-				names = append(names, profile.Name)
-			}
-			return tmsg.Err{Err: fmt.Errorf("multiple profiles found: use --profile (%s)", strings.Join(names, ", "))}
+			return tmsg.ProfileList{Profiles: cfg.Profiles}
 		}
 
 		if profileName == "" && len(cfg.Profiles) == 1 {
@@ -420,6 +466,37 @@ func loadColumnsCmd(connector db.Connector, schemaName, tableName string) tea.Cm
 	}
 }
 
+func preloadColumnsCmd(connector db.Connector, tables []db.Table) tea.Cmd {
+	return func() tea.Msg {
+		if connector == nil {
+			return nil
+		}
+		words := map[string]struct{}{}
+		for _, table := range tables {
+			cols, err := connector.ListColumns(context.Background(), qualifiedTable(table.Schema, table.Name))
+			if err != nil {
+				continue
+			}
+			for _, col := range cols {
+				words[col.Name] = struct{}{}
+				words[fmt.Sprintf("%s.%s", table.Name, col.Name)] = struct{}{}
+				if table.Schema != "" {
+					words[fmt.Sprintf("%s.%s.%s", table.Schema, table.Name, col.Name)] = struct{}{}
+				}
+			}
+		}
+		if len(words) == 0 {
+			return nil
+		}
+		out := make([]string, 0, len(words))
+		for word := range words {
+			out = append(out, word)
+		}
+		sort.Strings(out)
+		return tmsg.PreloadWords{Words: out}
+	}
+}
+
 func exportCmd(format string, result *db.Result) tea.Cmd {
 	return func() tea.Msg {
 		if result == nil {
@@ -458,9 +535,15 @@ func (m *Model) addWordsFromTables(tables []db.Table) {
 	}
 }
 
-func (m *Model) addWordsFromColumns(cols []db.Column) {
+func (m *Model) addWordsFromColumns(schemaName, tableName string, cols []db.Column) {
 	for _, col := range cols {
 		m.words[col.Name] = struct{}{}
+		if tableName != "" {
+			m.words[fmt.Sprintf("%s.%s", tableName, col.Name)] = struct{}{}
+		}
+		if schemaName != "" && tableName != "" {
+			m.words[fmt.Sprintf("%s.%s.%s", schemaName, tableName, col.Name)] = struct{}{}
+		}
 	}
 }
 
@@ -476,6 +559,50 @@ func (m *Model) pushAutocomplete() tea.Cmd {
 	return func() tea.Msg {
 		return tmsg.AutocompleteUpdate{Words: words}
 	}
+}
+
+func connectProfileCmd(profile config.Profile) tea.Cmd {
+	return func() tea.Msg {
+		password, _ := config.LoadPassword(profile.Name)
+		dsn := config.BuildDSN(profile, password)
+		if dsn == "" {
+			return tmsg.Err{Err: fmt.Errorf("invalid profile: %s", profile.Name)}
+		}
+		conn, err := db.Open(dsn)
+		if err != nil {
+			return tmsg.Err{Err: err}
+		}
+		return dbConnectorMsg{connector: conn}
+	}
+}
+
+type profileItem struct {
+	profile config.Profile
+}
+
+func (p profileItem) Title() string {
+	return p.profile.Name
+}
+
+func (p profileItem) Description() string {
+	if p.profile.Driver == "sqlite" || p.profile.Driver == "duckdb" {
+		return fmt.Sprintf("%s · %s", p.profile.Driver, p.profile.Path)
+	}
+	return fmt.Sprintf("%s · %s:%d/%s", p.profile.Driver, p.profile.Host, p.profile.Port, p.profile.Database)
+}
+
+func (p profileItem) FilterValue() string {
+	return p.profile.Name + " " + p.profile.Host + " " + p.profile.Database + " " + p.profile.Path
+}
+
+func overlayProfilePicker(base string, list list.Model, width, height int) string {
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("39")).
+		Padding(1, 2).
+		Width(min(72, width-4))
+	content := box.Render(list.View())
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, content)
 }
 
 func qualifiedTable(schemaName, tableName string) string {

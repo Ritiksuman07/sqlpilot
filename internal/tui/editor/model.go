@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -32,7 +33,8 @@ func New() Model {
 	area.Prompt = ""
 	area.ShowLineNumbers = true
 	area.SetValue("SELECT * FROM users LIMIT 100;")
-	hlist := list.New([]list.Item{}, list.NewDefaultDelegate(), 20, 5)
+	delegate := newHistoryDelegate()
+	hlist := list.New([]list.Item{}, delegate, 20, 5)
 	hlist.Title = "History"
 	hlist.SetShowStatusBar(false)
 	hlist.SetFilteringEnabled(true)
@@ -196,6 +198,79 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+type historyDelegate struct {
+	styles list.DefaultItemStyles
+	height int
+}
+
+func newHistoryDelegate() historyDelegate {
+	return historyDelegate{
+		styles: list.NewDefaultItemStyles(),
+		height: 2,
+	}
+}
+
+func (d historyDelegate) Height() int {
+	return d.height
+}
+
+func (d historyDelegate) Spacing() int {
+	return 1
+}
+
+func (d historyDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
+	return nil
+}
+
+func (d historyDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	h, ok := item.(historyItem)
+	if !ok {
+		return
+	}
+
+	title := h.Title()
+	desc := h.Description()
+	filter := strings.TrimSpace(m.FilterValue())
+
+	isSelected := index == m.Index()
+	isFiltered := m.FilterState() == list.Filtering || m.FilterState() == list.FilterApplied
+
+	normalTitle := d.styles.NormalTitle
+	normalDesc := d.styles.NormalDesc
+	selectedTitle := d.styles.SelectedTitle
+	selectedDesc := d.styles.SelectedDesc
+
+	if isSelected && m.FilterState() != list.Filtering {
+		title = highlightText(title, filter, d.styles.FilterMatch, selectedTitle, isFiltered)
+		desc = highlightText(desc, filter, d.styles.FilterMatch, selectedDesc, isFiltered)
+		title = selectedTitle.Render(title)
+		desc = selectedDesc.Render(desc)
+	} else {
+		title = highlightText(title, filter, d.styles.FilterMatch, normalTitle, isFiltered)
+		desc = highlightText(desc, filter, d.styles.FilterMatch, normalDesc, isFiltered)
+		title = normalTitle.Render(title)
+		desc = normalDesc.Render(desc)
+	}
+
+	fmt.Fprintf(w, "%s\n%s", title, desc)
+}
+
+func highlightText(text, filter string, matchStyle, baseStyle lipgloss.Style, enabled bool) string {
+	if !enabled || filter == "" {
+		return text
+	}
+	lowerText := strings.ToLower(text)
+	lowerFilter := strings.ToLower(filter)
+	idx := strings.Index(lowerText, lowerFilter)
+	if idx == -1 {
+		return text
+	}
+	before := text[:idx]
+	match := text[idx : idx+len(filter)]
+	after := text[idx+len(filter):]
+	return before + matchStyle.Inherit(baseStyle).Render(match) + after
 }
 
 func (m *Model) autocomplete() {
